@@ -4,14 +4,8 @@ Flask API Backend for LexMind AI React Frontend
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import pandas as pd
 import os
 from dotenv import load_dotenv
-from src.embedder import LegalEmbedder
-from src.retrieval import FAISSRetriever
-from src.summarizer import LegalSummarizer
-from src.qa_engine import LegalQAEngine
-from openai import OpenAI
 
 # Load environment variables
 load_dotenv()
@@ -30,12 +24,7 @@ def health_check():
 # OpenRouter configuration
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 if not OPENROUTER_API_KEY:
-    raise ValueError("OPENROUTER_API_KEY environment variable is not set")
-
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=OPENROUTER_API_KEY,
-)
+    print("WARNING: OPENROUTER_API_KEY not set")
 
 # Global variables for models (will be loaded after Flask starts)
 embedder = None
@@ -49,32 +38,53 @@ def load_models():
     """Load models in background after Flask starts"""
     global embedder, retriever, train_df, summarizer, qa_engine, models_loaded
     
-    print("Loading models...")
-    embedder = LegalEmbedder()
-    retriever = FAISSRetriever(embedding_dim=768)
-    
-    # Load or create embeddings
-    index_path = 'models/embeddings/train_embeddings.index'
-    if os.path.exists(index_path):
-        print("Loading existing embeddings...")
-        retriever.load_index(index_path)
-    else:
-        print("Embeddings not found. Creating them (this will take a few minutes)...")
-        os.makedirs('models/embeddings', exist_ok=True)
-        train_df_temp = pd.read_csv('data/processed/train.csv')
-        print(f"Encoding {len(train_df_temp)} documents...")
-        embeddings = embedder.encode_texts(train_df_temp['text'].tolist())
-        print("Building FAISS index...")
-        retriever.build_index(embeddings)
-        retriever.save_index(index_path)
-        print("Embeddings created and saved!")
-    
-    train_df = pd.read_csv('data/processed/train.csv')
-    retriever.set_documents(train_df)
-    summarizer = LegalSummarizer()
-    qa_engine = LegalQAEngine()
-    models_loaded = True
-    print("Models loaded successfully!")
+    try:
+        print("Loading models...")
+        
+        # Import here to avoid crashes on startup
+        import pandas as pd
+        from openai import OpenAI
+        from src.embedder import LegalEmbedder
+        from src.retrieval import FAISSRetriever
+        from src.summarizer import LegalSummarizer
+        from src.qa_engine import LegalQAEngine
+        
+        # Store OpenAI client globally
+        global client
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=OPENROUTER_API_KEY,
+        )
+        
+        embedder = LegalEmbedder()
+        retriever = FAISSRetriever(embedding_dim=768)
+        
+        # Load or create embeddings
+        index_path = 'models/embeddings/train_embeddings.index'
+        if os.path.exists(index_path):
+            print("Loading existing embeddings...")
+            retriever.load_index(index_path)
+        else:
+            print("Embeddings not found. Creating them (this will take a few minutes)...")
+            os.makedirs('models/embeddings', exist_ok=True)
+            train_df_temp = pd.read_csv('data/processed/train.csv')
+            print(f"Encoding {len(train_df_temp)} documents...")
+            embeddings = embedder.encode_texts(train_df_temp['text'].tolist())
+            print("Building FAISS index...")
+            retriever.build_index(embeddings)
+            retriever.save_index(index_path)
+            print("Embeddings created and saved!")
+        
+        train_df = pd.read_csv('data/processed/train.csv')
+        retriever.set_documents(train_df)
+        summarizer = LegalSummarizer()
+        qa_engine = LegalQAEngine()
+        models_loaded = True
+        print("Models loaded successfully!")
+    except Exception as e:
+        print(f"ERROR loading models: {e}")
+        import traceback
+        traceback.print_exc()
 
 @app.route('/api/health', methods=['GET'])
 def health():
@@ -105,6 +115,9 @@ def retrieve():
 
 @app.route('/api/summarize', methods=['POST'])
 def summarize():
+    if not models_loaded:
+        return jsonify({"error": "Models are still loading, please wait..."}), 503
+        
     data = request.json
     text = data.get('text', '')
     max_length = data.get('max_length', 150)
@@ -136,6 +149,11 @@ def summarize():
 @app.route('/api/chat', methods=['POST'])
 def chat():
     """RAG-based chat using OpenRouter LLM"""
+    if not models_loaded:
+        return jsonify({"error": "Models are still loading, please wait..."}), 503
+    
+    import pandas as pd
+    
     data = request.json
     question = data.get('question', '')
     chat_history = data.get('history', [])
@@ -248,6 +266,9 @@ Instructions:
 
 @app.route('/api/qa', methods=['POST'])
 def qa():
+    if not models_loaded:
+        return jsonify({"error": "Models are still loading, please wait..."}), 503
+        
     data = request.json
     question = data.get('question', '')
     top_k = data.get('top_k', 5)
@@ -273,6 +294,9 @@ def qa():
 
 @app.route('/api/stats', methods=['GET'])
 def stats():
+    if not models_loaded:
+        return jsonify({"error": "Models are still loading, please wait..."}), 503
+        
     return jsonify({
         "total_documents": len(train_df),
         "embedding_dim": 768,
@@ -284,12 +308,18 @@ def stats():
 
 @app.route('/api/cases', methods=['GET'])
 def get_cases():
+    if not models_loaded:
+        return jsonify({"error": "Models are still loading, please wait..."}), 503
+        
     # Return ALL cases from the training set
     cases = train_df['case_id'].tolist()
     return jsonify({"cases": cases, "total": len(cases)})
 
 @app.route('/api/case/<case_id>', methods=['GET'])
 def get_case(case_id):
+    if not models_loaded:
+        return jsonify({"error": "Models are still loading, please wait..."}), 503
+        
     case = train_df[train_df['case_id'] == case_id]
     if len(case) == 0:
         return jsonify({"error": "Case not found"}), 404
