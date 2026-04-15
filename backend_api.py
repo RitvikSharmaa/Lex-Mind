@@ -22,6 +22,11 @@ app = Flask(__name__)
 frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 CORS(app, origins=[frontend_url, 'http://localhost:3000', 'http://localhost:5173'])
 
+# Simple health check that works before models are loaded
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({"status": "ok"}), 200
+
 # OpenRouter configuration
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 if not OPENROUTER_API_KEY:
@@ -32,39 +37,54 @@ client = OpenAI(
     api_key=OPENROUTER_API_KEY,
 )
 
-# Initialize models (load once at startup)
-print("Loading models...")
-embedder = LegalEmbedder()
-retriever = FAISSRetriever(embedding_dim=768)
+# Global variables for models (will be loaded after Flask starts)
+embedder = None
+retriever = None
+train_df = None
+summarizer = None
+qa_engine = None
+models_loaded = False
 
-# Load or create embeddings
-index_path = 'models/embeddings/train_embeddings.index'
-if os.path.exists(index_path):
-    print("Loading existing embeddings...")
-    retriever.load_index(index_path)
-else:
-    print("Embeddings not found. Creating them (this will take a few minutes)...")
-    os.makedirs('models/embeddings', exist_ok=True)
-    train_df_temp = pd.read_csv('data/processed/train.csv')
-    print(f"Encoding {len(train_df_temp)} documents...")
-    embeddings = embedder.encode_texts(train_df_temp['text'].tolist())
-    print("Building FAISS index...")
-    retriever.build_index(embeddings)
-    retriever.save_index(index_path)
-    print("Embeddings created and saved!")
-
-train_df = pd.read_csv('data/processed/train.csv')
-retriever.set_documents(train_df)
-summarizer = LegalSummarizer()
-qa_engine = LegalQAEngine()
-print("Models loaded successfully!")
+def load_models():
+    """Load models in background after Flask starts"""
+    global embedder, retriever, train_df, summarizer, qa_engine, models_loaded
+    
+    print("Loading models...")
+    embedder = LegalEmbedder()
+    retriever = FAISSRetriever(embedding_dim=768)
+    
+    # Load or create embeddings
+    index_path = 'models/embeddings/train_embeddings.index'
+    if os.path.exists(index_path):
+        print("Loading existing embeddings...")
+        retriever.load_index(index_path)
+    else:
+        print("Embeddings not found. Creating them (this will take a few minutes)...")
+        os.makedirs('models/embeddings', exist_ok=True)
+        train_df_temp = pd.read_csv('data/processed/train.csv')
+        print(f"Encoding {len(train_df_temp)} documents...")
+        embeddings = embedder.encode_texts(train_df_temp['text'].tolist())
+        print("Building FAISS index...")
+        retriever.build_index(embeddings)
+        retriever.save_index(index_path)
+        print("Embeddings created and saved!")
+    
+    train_df = pd.read_csv('data/processed/train.csv')
+    retriever.set_documents(train_df)
+    summarizer = LegalSummarizer()
+    qa_engine = LegalQAEngine()
+    models_loaded = True
+    print("Models loaded successfully!")
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    return jsonify({"status": "healthy", "models_loaded": True})
+    return jsonify({"status": "healthy", "models_loaded": models_loaded})
 
 @app.route('/api/retrieve', methods=['POST'])
 def retrieve():
+    if not models_loaded:
+        return jsonify({"error": "Models are still loading, please wait..."}), 503
+    
     data = request.json
     query = data.get('query', '')
     k = data.get('k', 5)
@@ -280,6 +300,13 @@ if __name__ == '__main__':
     try:
         port = int(os.environ.get('PORT', 5000))
         print(f"Starting Flask app on 0.0.0.0:{port}")
+        
+        # Start model loading in a separate thread
+        import threading
+        model_thread = threading.Thread(target=load_models, daemon=True)
+        model_thread.start()
+        
+        # Start Flask immediately
         app.run(host='0.0.0.0', port=port, debug=False)
     except Exception as e:
         print(f"ERROR starting Flask app: {e}")
