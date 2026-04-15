@@ -1,0 +1,1 @@
+"""LexMind AI Source Package"""

@@ -1,0 +1,4 @@
+model: sentence-transformers/all-mpnet-base-v2
+embedding_dim: 768
+num_documents: 2488
+text_column: cleaned_text
