@@ -36,7 +36,23 @@ client = OpenAI(
 print("Loading models...")
 embedder = LegalEmbedder()
 retriever = FAISSRetriever(embedding_dim=768)
-retriever.load_index('models/embeddings/train_embeddings.index')
+
+# Load or create embeddings
+index_path = 'models/embeddings/train_embeddings.index'
+if os.path.exists(index_path):
+    print("Loading existing embeddings...")
+    retriever.load_index(index_path)
+else:
+    print("Embeddings not found. Creating them (this will take a few minutes)...")
+    os.makedirs('models/embeddings', exist_ok=True)
+    train_df_temp = pd.read_csv('data/processed/train.csv')
+    print(f"Encoding {len(train_df_temp)} documents...")
+    embeddings = embedder.encode_texts(train_df_temp['text'].tolist())
+    print("Building FAISS index...")
+    retriever.build_index(embeddings)
+    retriever.save_index(index_path)
+    print("Embeddings created and saved!")
+
 train_df = pd.read_csv('data/processed/train.csv')
 retriever.set_documents(train_df)
 summarizer = LegalSummarizer()
@@ -261,5 +277,12 @@ def get_case(case_id):
     return jsonify(case.iloc[0].to_dict())
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    try:
+        port = int(os.environ.get('PORT', 5000))
+        print(f"Starting Flask app on 0.0.0.0:{port}")
+        app.run(host='0.0.0.0', port=port, debug=False)
+    except Exception as e:
+        print(f"ERROR starting Flask app: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
