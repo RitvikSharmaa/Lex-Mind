@@ -33,8 +33,6 @@ function App() {
   const [qaLoading, setQaLoading] = useState(false);
   const [retrievedDocs, setRetrievedDocs] = useState<any[]>([]);
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
-  const [showRetrievedDocs, setShowRetrievedDocs] = useState(true);
-  const [docsViewMode, setDocsViewMode] = useState<'bottom' | 'side'>('side');
   const chatEndRef = useRef<HTMLDivElement>(null);
   
   // Analytics state
