@@ -14,9 +14,19 @@ app = Flask(__name__)
 
 # CORS configuration
 frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-CORS(app, origins=[frontend_url, 'http://localhost:3000', 'http://localhost:5173'])
+CORS(app, origins=[
+    frontend_url, 
+    'http://localhost:3000', 
+    'http://localhost:5173',
+    'https://lex-mind-rosy.vercel.app',
+    'https://*.vercel.app'
+], supports_credentials=True)
 
 # Simple health check that works before models are loaded
+@app.route('/', methods=['GET'])
+def root():
+    return jsonify({"message": "LexMind AI Backend", "status": "running"}), 200
+
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "ok"}), 200
