@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { API_URL } from './config';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css';
@@ -48,7 +49,7 @@ function App() {
     if (activeTab === 'summarization' && cases.length === 0) {
       console.log('Fetching cases...');
       setCasesLoading(true);
-      fetch('http://localhost:5000/api/cases')
+      fetch(`${API_URL}/api/cases`)
         .then(res => {
           console.log('Cases response status:', res.status);
           return res.json();
@@ -69,7 +70,7 @@ function App() {
   // Load analytics stats
   useEffect(() => {
     if (activeTab === 'analytics' && !stats) {
-      fetch('http://localhost:5000/api/stats')
+      fetch(`${API_URL}/api/stats`)
         .then(res => res.json())
         .then(data => setStats(data))
         .catch(err => console.error(err));
@@ -82,7 +83,7 @@ function App() {
     const start = performance.now();
     
     try {
-      const response = await fetch('http://localhost:5000/api/retrieve', {
+      const response = await fetch(`${API_URL}/api/retrieve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, k: 5 }),
@@ -109,7 +110,7 @@ function App() {
         return;
       }
       try {
-        const caseResponse = await fetch(`http://localhost:5000/api/case/${selectedCase}`);
+        const caseResponse = await fetch(`${API_URL}/api/case/${selectedCase}`);
         const caseData = await caseResponse.json();
         textToSummarize = caseData.text;
         setOriginalText(textToSummarize); // Store original for viewing
@@ -131,7 +132,7 @@ function App() {
 
     try {
       console.log('Sending to backend:', { max_length: maxLength, min_length: minLength });
-      const response = await fetch('http://localhost:5000/api/summarize', {
+      const response = await fetch(`${API_URL}/api/summarize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -166,7 +167,7 @@ function App() {
     
     try {
       console.log('Sending chat request:', question);
-      const response = await fetch('http://localhost:5000/api/chat', {
+      const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
