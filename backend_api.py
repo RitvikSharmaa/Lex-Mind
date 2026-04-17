@@ -340,16 +340,22 @@ if __name__ == '__main__':
     try:
         port = int(os.environ.get('PORT', 5000))
         print(f"Starting Flask app on 0.0.0.0:{port}")
+        print(f"API Key configured: {bool(OPENROUTER_API_KEY)}")
         
         # Start model loading in a separate thread
         import threading
         model_thread = threading.Thread(target=load_models, daemon=True)
         model_thread.start()
+        print("Model loading thread started")
         
         # Start Flask immediately
-        app.run(host='0.0.0.0', port=port, debug=False)
+        print("Starting Flask server...")
+        app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
     except Exception as e:
-        print(f"ERROR starting Flask app: {e}")
+        print(f"FATAL ERROR starting Flask app: {e}")
         import traceback
         traceback.print_exc()
-        raise
+        # Try to keep the process alive
+        import time
+        while True:
+            time.sleep(60)
