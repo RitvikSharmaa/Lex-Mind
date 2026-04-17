@@ -95,12 +95,19 @@ def load_models():
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    return jsonify({"status": "healthy", "models_loaded": models_loaded})
+    return jsonify({
+        "status": "healthy", 
+        "models_loaded": models_loaded,
+        "message": "Models are loading in background. This takes 2-3 minutes on first startup." if not models_loaded else "All systems operational"
+    })
 
 @app.route('/api/retrieve', methods=['POST'])
 def retrieve():
     if not models_loaded:
-        return jsonify({"error": "Models are still loading, please wait..."}), 503
+        return jsonify({
+            "error": "Models are still loading. This may take 2-3 minutes on first startup. Please try again shortly.",
+            "models_loaded": False
+        }), 503
     
     data = request.json
     query = data.get('query', '')
