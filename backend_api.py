@@ -12,15 +12,12 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# CORS configuration
-frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-CORS(app, origins=[
-    frontend_url, 
-    'http://localhost:3000', 
-    'http://localhost:5173',
-    'https://lex-mind-rosy.vercel.app',
-    'https://*.vercel.app'
-], supports_credentials=True)
+# CORS configuration - Allow all origins for now
+CORS(app, 
+     resources={r"/*": {"origins": "*"}},
+     supports_credentials=False,
+     allow_headers=["Content-Type"],
+     methods=["GET", "POST", "OPTIONS"])
 
 # Simple health check that works before models are loaded
 @app.route('/', methods=['GET'])
