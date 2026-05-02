@@ -1,2 +1,2 @@
 // API Configuration
-export const API_URL = import.meta.env.VITE_API_URL || 'https://lex-mind-backend.onrender.com';
+export const API_URL = 'http://localhost:5000';

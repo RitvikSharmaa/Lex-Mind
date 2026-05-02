@@ -722,7 +722,9 @@ function App() {
                         >
                           <div className="flex-1">
                             <span className="font-semibold text-purple-600 block">{doc.case_id}</span>
-                            <span className="text-gray-600 text-xs">{doc.label}</span>
+                            <span className={`text-xs font-semibold ${doc.label === 'statute' ? 'text-blue-600' : 'text-orange-600'}`}>
+                              {doc.label === 'statute' ? '📜 STATUTE' : '⚖️ CASE'}
+                            </span>
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className="text-green-600 text-sm font-semibold">{(doc.similarity_score * 100).toFixed(1)}%</span>

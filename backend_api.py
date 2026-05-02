@@ -109,6 +109,8 @@ def retrieve():
             "models_loaded": False
         }), 503
     
+    import pandas as pd
+    
     data = request.json
     query = data.get('query', '')
     k = data.get('k', 5)
@@ -116,15 +118,42 @@ def retrieve():
     # Encode query
     query_embedding = embedder.encode_texts([query])[0]
     
-    # Retrieve similar documents
-    results = retriever.retrieve(query_embedding, k=k)
+    # Retrieve more documents to ensure we get both types
+    all_retrieved = retriever.retrieve(query_embedding, k=k*3)
+    
+    # Separate cases and statutes
+    cases = all_retrieved[all_retrieved['label'] == 'prior_case']
+    statutes = all_retrieved[all_retrieved['label'] == 'statute']
+    
+    # Balance the results: get equal numbers of each type
+    num_each = k // 2
+    remainder = k % 2
+    
+    # Get top results from each category
+    top_cases = cases.head(num_each + remainder)
+    top_statutes = statutes.head(num_each)
+    
+    # Combine and sort by similarity score
+    results = pd.concat([top_cases, top_statutes]).sort_values('similarity_score', ascending=False)
+    
+    # If we don't have enough of one type, fill with the other
+    if len(results) < k:
+        remaining = k - len(results)
+        if len(cases) > len(top_cases):
+            results = pd.concat([results, cases.iloc[len(top_cases):len(top_cases)+remaining]])
+        elif len(statutes) > len(top_statutes):
+            results = pd.concat([results, statutes.iloc[len(top_statutes):len(top_statutes)+remaining]])
     
     # Convert to list of dicts
     results_list = results.to_dict('records')
     
     return jsonify({
         "results": results_list,
-        "count": len(results_list)
+        "count": len(results_list),
+        "breakdown": {
+            "cases": len([r for r in results_list if r['label'] == 'prior_case']),
+            "statutes": len([r for r in results_list if r['label'] == 'statute'])
+        }
     })
 
 @app.route('/api/summarize', methods=['POST'])
